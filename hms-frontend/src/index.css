@@ -1,0 +1,56 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
+@theme {
+  --font-display: 'Lexend', sans-serif;
+  --font-sans: 'Inter', sans-serif;
+
+  --color-navy-950: #071A2E;
+  --color-navy-900: #0A2540;
+  --color-navy-800: #123456;
+
+  --color-teal-700: #0B5566;
+  --color-teal-600: #0E6B7F;
+  --color-teal-500: #14899E;
+  --color-teal-100: #DFF1F3;
+  --color-teal-50: #F0F9FA;
+
+  --color-surface: #F5F7F9;
+  --color-surface-alt: #FFFFFF;
+  --color-ink-900: #1B2430;
+  --color-ink-600: #5B6B7A;
+  --color-ink-400: #93A2AF;
+  --color-line: #E4E9ED;
+
+  --color-success-600: #218A5D;
+  --color-success-50: #E8F7F0;
+  --color-warning-600: #B87A17;
+  --color-warning-50: #FCF3E3;
+  --color-danger-600: #C7423C;
+  --color-danger-50: #FBEAE9;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-surface);
+  color: var(--color-ink-900);
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: var(--font-display);
+}
+
+/* subtle pulse-line signature motif used on auth screens */
+@keyframes pulse-line {
+  0% { stroke-dashoffset: 240; }
+  100% { stroke-dashoffset: 0; }
+}
+.pulse-draw {
+  stroke-dasharray: 240;
+  animation: pulse-line 2.2s ease-out forwards;
+}
+
+/* scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--color-line); border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
