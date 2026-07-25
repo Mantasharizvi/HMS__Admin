@@ -1,5 +1,6 @@
 const asyncHandler = require('../utils/asyncHandler');
 const Appointment = require('../models/Appointment');
+const Consultation = require('../models/Consultation');
 const Admission = require('../models/Admission');
 const Bill = require('../models/Bill');
 const Sale = require('../models/Sale');
@@ -19,7 +20,8 @@ function lastNDays(n) {
     const end = new Date(start);
     end.setUTCDate(end.getUTCDate() + 1);
     const label = start.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    days.push({ start, end, label });
+    const isoDate = start.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+    days.push({ start, end, label, isoDate });
   }
   return days;
 }
@@ -31,14 +33,14 @@ const getOpdReport = asyncHandler(async (req, res) => {
 
   const rows = await Promise.all(
     days.map(async (day, idx) => {
-      const [patients, consultations, revenueAgg] = await Promise.all([
-        Appointment.countDocuments({ createdAt: { $gte: day.start, $lt: day.end } }),
-        Appointment.countDocuments({ createdAt: { $gte: day.start, $lt: day.end }, status: 'Completed' }),
-        Bill.aggregate([
-          { $match: { type: 'OPD', createdAt: { $gte: day.start, $lt: day.end } } },
-          { $group: { _id: null, total: { $sum: '$total' } } },
-        ]),
-      ]);
+     const [patients, consultations, revenueAgg] = await Promise.all([
+  Appointment.countDocuments({ date: day.isoDate }),
+  Consultation.countDocuments({ createdAt: { $gte: day.start, $lt: day.end } }),
+  Bill.aggregate([
+    { $match: { type: 'OPD', createdAt: { $gte: day.start, $lt: day.end } } },
+    { $group: { _id: null, total: { $sum: '$total' } } },
+  ]),
+]);
       return {
         id: `OPD-${String(idx + 1).padStart(3, '0')}`,
         date: day.label,
