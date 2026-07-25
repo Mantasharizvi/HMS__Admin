@@ -32,7 +32,7 @@ npm run seed
 
 Demo login after seeding:
 ```
-email: mntshrizvi@gmail.com
+email: hms643154@gmail.com
 password: Admin@121
 ```
 
