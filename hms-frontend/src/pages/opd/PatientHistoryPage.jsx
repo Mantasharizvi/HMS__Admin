@@ -75,32 +75,30 @@ export default function PatientHistoryPage() {
 
   // Dynamic Filtering Logic
   const filteredHistory = history.filter((item) => {
-    const itemDate = item.date ? new Date(item.date) : new Date();
+  if (!item.date) return selectedFilter === 'all' && !searchDate;
+  const itemDate = new Date(item.date);
 
-   
-    if (searchDate && item.date) {
-      const itemDateOnly =
-        `${itemDate.getFullYear()}-${String(itemDate.getMonth() + 1).padStart(2, '0')}-${String(itemDate.getDate()).padStart(2, '0')}`;
-      if (itemDateOnly !== searchDate) return false;
+  // 1. Search By Date — UTC based comparison (matches how dates are
+  // handled everywhere else in the app), fixes local-timezone mismatch.
+  if (searchDate) {
+    const itemDateOnly = itemDate.toISOString().slice(0, 10); // 'YYYY-MM-DD' in UTC
+    if (itemDateOnly !== searchDate) return false;
+  }
+
+  // 2. Expanded Month & Year Dropdown Filter
+  if (selectedFilter !== 'all') {
+    const itemYearMonth = itemDate.toISOString().slice(0, 7); // 'YYYY-MM' in UTC
+
+    if (selectedFilter === 'current-month') {
+      const currentYearMonth = new Date().toISOString().slice(0, 7);
+      if (itemYearMonth !== currentYearMonth) return false;
+    } else {
+      if (itemYearMonth !== selectedFilter) return false;
     }
+  }
 
-    // 2. Expanded Month & Year Dropdown Filter
-    if (selectedFilter !== 'all') {
-      const itemYear = itemDate.getFullYear().toString();
-      const itemMonth = (itemDate.getMonth() + 1).toString().padStart(2, '0'); 
-      const itemYearMonth = `${itemYear}-${itemMonth}`;
-
-      if (selectedFilter === 'current-month') {
-        const currentYear = new Date().getFullYear();
-        const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
-        if (itemYearMonth !== `${currentYear}-${currentMonth}`) return false;
-      } else {
-        if (itemYearMonth !== selectedFilter) return false;
-      }
-    }
-
-    return true;
-  });
+  return true;
+});
 
   return (
     <div className="space-y-6">
@@ -178,12 +176,16 @@ export default function PatientHistoryPage() {
         <ul className="mt-4 space-y-3 text-sm text-ink-700">
           {filteredHistory.map((item, index) => {
             const noteText = item.note || item;
-            const recordDate = item.date ? new Date(item.date) : new Date();
-            const displayDate = recordDate.toLocaleDateString('en-IN', { 
-              day: 'numeric', 
-              month: 'short', 
-              year: 'numeric' 
-            });
+const recordDate = item.date ? new Date(item.date) : new Date();
+const displayDate = recordDate.toLocaleDateString('en-IN', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+
+
+
 
             return (
               <li key={index} className="flex items-start gap-3 p-2.5 hover:bg-white rounded-md transition-colors border border-transparent hover:border-line">
