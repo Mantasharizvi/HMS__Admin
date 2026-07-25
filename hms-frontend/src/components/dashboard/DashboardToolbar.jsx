@@ -3,12 +3,11 @@ import Select from '../common/Select';
 import Button from '../common/Button';
 
 // Static filter option lists for the dashboard toolbar (not hospital data).
-const departments = ['All Departments', 'General', 'Cardiology', 'Orthopedics', 'Pediatrics', 'Neurology', 'ENT', 'Not recommended'];
+
 const dateRanges = ['Today', 'Last 7 days', 'Last 30 days', 'This year'];
 
 export default function DashboardToolbar({
   search, onSearchChange,
-  department, onDepartmentChange,
   range, onRangeChange,
   onExport,
 }) {
@@ -25,15 +24,7 @@ export default function DashboardToolbar({
         />
       </div>
 
-      <div className="w-full sm:w-48">
-        <Select
-          value={department}
-          onChange={(e) => onDepartmentChange(e.target.value)}
-          options={departments.map((d) => ({ value: d, label: d }))}
-          placeholder="All Departments"
-          hideBlankOption
-        />
-      </div>
+     
 
       <div className="w-full sm:w-44">
         <Select

@@ -32,7 +32,6 @@ function isWithinRange(dateStr, range) {
 export default function Dashboard() {
   const toast = useToast();
   const [search, setSearch] = useState('');
-  const [department, setDepartment] = useState('All Departments');
   const [range, setRange] = useState('Last 7 days');
   const [showExportModal, setShowExportModal] = useState(false);
 
@@ -96,16 +95,15 @@ export default function Dashboard() {
     ];
   }, [stats]);
 
-  const filteredPatients = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return recentPatients.filter((p) => {
-      const matchesSearch =
-        !term || p.name.toLowerCase().includes(term) || p.doctor.toLowerCase().includes(term);
-      const matchesDept = department === 'All Departments' || p.department === department;
-      const matchesRange = isWithinRange(p.date, range);
-      return matchesSearch && matchesDept && matchesRange;
-    });
-  }, [search, department, range, recentPatients]);
+ const filteredPatients = useMemo(() => {
+  const term = search.trim().toLowerCase();
+  return recentPatients.filter((p) => {
+    const matchesSearch =
+      !term || p.name.toLowerCase().includes(term) || p.doctor.toLowerCase().includes(term);
+    const matchesRange = isWithinRange(p.date, range);
+    return matchesSearch && matchesRange;
+  });
+}, [search, range, recentPatients]);
 
   // Same shape the export modal/util expects: [{ key, header }] + plain row objects.
   const exportColumns = [
@@ -161,15 +159,13 @@ export default function Dashboard() {
       {/* Recent patients: search + filter + table */}
       <Card title="Recently Admitted">
         <div className="mb-4">
-          <DashboardToolbar
-            search={search}
-            onSearchChange={setSearch}
-            department={department}
-            onDepartmentChange={setDepartment}
-            range={range}
-            onRangeChange={setRange}
-            onExport={() => setShowExportModal(true)}
-          />
+         <DashboardToolbar
+  search={search}
+  onSearchChange={setSearch}
+  range={range}
+  onRangeChange={setRange}
+  onExport={() => setShowExportModal(true)}
+/>
         </div>
         <RecentPatientsTable data={filteredPatients} />
       </Card>

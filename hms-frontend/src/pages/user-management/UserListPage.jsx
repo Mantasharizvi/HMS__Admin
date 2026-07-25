@@ -133,17 +133,7 @@ export default function UserListPage() {
           value={newUserForm.license}
           onChange={(e) => setNewUserForm({ ...newUserForm, license: e.target.value })}
         />
-        <div className="lg:col-span-2">
-          <label className="block text-sm font-medium text-ink-900 mb-1.5">Permissions</label>
-          <div className="grid grid-cols-2 gap-3">
-            {['View Patients', 'Add Patients', 'View Prescriptions', 'Issue Prescriptions'].map((p) => (
-              <label key={p} className="flex items-center gap-2">
-                <input type="checkbox" className="w-4 h-4 rounded border-line" />
-                <span className="text-sm text-ink-700">{p}</span>
-              </label>
-            ))}
-          </div>
-        </div>
+     
       </FormModal>
 
       <UserProfileModal
