@@ -13,7 +13,7 @@ const patientSchema = {
   age: [rules.required('Age is required'), rules.numeric(), rules.positive()],
 };
 
-const emptyAppointment = { patient: '', doctor: '', department: '', date: '', time: '', reason: '', type: 'offline', status: 'pending' };
+const emptyAppointment = { patient: '', doctor: '', department: '', date: '', time: '', reason: '', type: 'offline', status: 'pending', payment: 'unpaid' };
 const appointmentSchema = {
   patient: [rules.required('Please select a patient')],
   doctor: [rules.required('Please select a doctor')],
@@ -186,15 +186,16 @@ export function OpdProvider({ children }) {
   };
 
   const handleOpenEditAppointment = (row) => {
-    setEditingAppointmentId(row.id);
-    setAppointmentForm({
-      patient: row.patient, doctor: row.doctor, department: row.department,
-      date: row.date, time: row.time, reason: row.reason || '',
-      type: row.type?.toLowerCase() || 'offline', status: row.status?.toLowerCase() || 'pending',
-    });
-    setAppointmentErrors({});
-    setIsAppointmentModalOpen(true);
-  };
+  setEditingAppointmentId(row.id);
+  setAppointmentForm({
+    patient: row.patient, doctor: row.doctor, department: row.department,
+    date: row.date, time: row.time, reason: row.reason || '',
+    type: row.type?.toLowerCase() || 'offline', status: row.status?.toLowerCase() || 'pending',
+    payment: row.payment?.toLowerCase() || 'unpaid',
+  });
+  setAppointmentErrors({});
+  setIsAppointmentModalOpen(true);
+};
 
   const handleSaveAppointment = async (e) => {
     e.preventDefault();
@@ -204,10 +205,10 @@ export function OpdProvider({ children }) {
       toast.error('Please fix the highlighted fields');
       return;
     }
-
-    const statusLabel = appointmentForm.status === 'confirmed' ? 'Confirmed' : 'Pending';
-    const typeLabel = appointmentForm.type === 'online' ? 'Online' : 'Offline';
-    const payload = { ...appointmentForm, status: statusLabel, type: typeLabel };
+const statusLabel = appointmentForm.status === 'confirmed' ? 'Confirmed' : appointmentForm.status === 'completed' ? 'Completed' : 'Pending';
+const typeLabel = appointmentForm.type === 'online' ? 'Online' : 'Offline';
+const paymentLabel = appointmentForm.payment === 'paid' ? 'Paid' : 'Unpaid';
+const payload = { ...appointmentForm, status: statusLabel, type: typeLabel, payment: paymentLabel };
 
     try {
       if (editingAppointmentId) {
@@ -260,8 +261,18 @@ export function OpdProvider({ children }) {
       setPrescriptions(data.data.prescriptions);
       setConsultations((current) => [data.data, ...current]);
 
-      // Consultation save also logs an entry to the patient's history on
-      // the backend — pull it so Patient History reflects it right away.
+const selectedPatient = patients.find((p) => p.id === consultation.patientid);
+try {
+  await api.post('/billing', {
+    type: 'OPD',
+    patient: selectedPatient?.name || 'Walk-in Patient',
+    lineItems: [{ label: 'Consultation Fee', amount: Number(consultation.consultationFee) || 500 }],
+    total: Number(consultation.consultationFee) || 500,
+  });
+} catch (err) {
+  console.error('Failed to auto-record consultation billing:', err);
+}
+
       try {
         const patientRes = await api.get(`/opd/patients/${consultation.patientid}`);
         setHistory(patientRes.data.data.history || []);

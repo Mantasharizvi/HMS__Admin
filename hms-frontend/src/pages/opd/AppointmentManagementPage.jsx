@@ -159,12 +159,18 @@ export default function AppointmentManagementPage() {
           onChange={(e) => setAppointmentForm({ ...appointmentForm, type: e.target.value })}
           options={[{ value: 'offline', label: 'Offline' }, { value: 'online', label: 'Online' }]}
         />
-        <Select
-          label="Appointment Status"
-          value={appointmentForm.status}
-          onChange={(e) => setAppointmentForm({ ...appointmentForm, status: e.target.value })}
-          options={[{ value: 'pending', label: 'Pending' }, { value: 'confirmed', label: 'Confirmed' }]}
-        />
+       <Select
+  label="Appointment Status"
+  value={appointmentForm.status}
+  onChange={(e) => setAppointmentForm({ ...appointmentForm, status: e.target.value })}
+  options={[{ value: 'pending', label: 'Pending' }, { value: 'confirmed', label: 'Confirmed' }, { value: 'completed', label: 'Completed' }]}
+/>
+<Select
+  label="Payment Status"
+  value={appointmentForm.payment}
+  onChange={(e) => setAppointmentForm({ ...appointmentForm, payment: e.target.value })}
+  options={[{ value: 'unpaid', label: 'Unpaid' }, { value: 'paid', label: 'Paid' }]}
+/>
         <Input
           label="Reason for Visit"
           placeholder="Enter reason for visit"
