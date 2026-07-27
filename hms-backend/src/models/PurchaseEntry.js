@@ -8,6 +8,9 @@ const purchaseEntrySchema = new mongoose.Schema(
     medicine: { type: String, required: true },
     qty: { type: Number, required: true },
     cost: { type: Number, required: true },
+    category: { type: String, default: '' },
+    unit: { type: String, default: '' },
+    expiry: { type: String, default: '' }, // ISO date string
   },
   { timestamps: true }
 );

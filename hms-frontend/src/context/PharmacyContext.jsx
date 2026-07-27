@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { useToast } from './ToastContext';
 import { validateForm, rules, isValid } from '../utils/validators';
 import api from '../services/api';
@@ -26,7 +27,7 @@ const medicineSchema = {
   stock: [rules.required('Initial stock is required'), rules.numeric(), rules.positive()],
 };
 
-const emptyPurchase = { supplier: '', medicine: '', qty: '', cost: '' };
+const emptyPurchase = { supplier: '', medicine: '', qty: '', cost: '', category: '', unit: '', expiry: '' };
 const purchaseSchema = {
   supplier: [rules.required('Supplier is required')],
   medicine: [rules.required('Please select a medicine')],
@@ -67,6 +68,11 @@ export function PharmacyProvider({ children }) {
   const [editingStockId, setEditingStockId] = useState(null);
   const [stockValue, setStockValue] = useState('');
 
+  // ---------- Excel-imported purchase data (dynamic columns/rows) ----------
+  const [importedPurchases, setImportedPurchases] = useState([]); // rows for the Table component: [{ id, ...dynamicCols }]
+  const [importedColumns, setImportedColumns] = useState([]); // [{ key, header }] derived from the uploaded file's header row
+  const [isImporting, setIsImporting] = useState(false);
+
   // ---------- Initial data load ----------
   useEffect(() => {
     api.get('/pharmacy/inventory')
@@ -84,8 +90,31 @@ export function PharmacyProvider({ children }) {
     api.get('/pharmacy/alerts')
       .then((res) => setAlerts(res.data.data))
       .catch(() => toast.error('Could not load expiry alerts'));
+
+    api.get('/pharmacy/purchases/import')
+      .then((res) => applyImportedRows(res.data.data))
+      .catch(() => toast.error('Could not load imported purchase data'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Turns backend rows ({ _id/id, data: {...} }) into Table-ready rows + dynamic columns.
+  const applyImportedRows = (rows) => {
+    const tableRows = rows.map((r) => ({ id: r._id || r.id, createdAt: r.createdAt, ...r.data }));
+    setImportedPurchases(tableRows);
+
+    // Build column list from the union of keys across all rows, preserving
+    // first-seen order, so the table matches whatever headers were in the file.
+    const seen = new Set();
+    const columns = [];
+    tableRows.forEach((row) => {
+      Object.keys(row).forEach((key) => {
+        if (key === 'id' || key === 'createdAt' || seen.has(key)) return;
+        seen.add(key);
+        columns.push({ key, header: key });
+      });
+    });
+    setImportedColumns(columns);
+  };
 
   const handleOpenMedicineModal = () => {
     setMedicineForm(emptyMedicine);
@@ -142,6 +171,9 @@ export function PharmacyProvider({ children }) {
         medicine: purchaseForm.medicine,
         qty: Number(purchaseForm.qty),
         cost: Number(purchaseForm.cost),
+        category: purchaseForm.category,
+        unit: purchaseForm.unit,
+        expiry: purchaseForm.expiry,
       });
       setPurchaseEntries((current) => [{ ...data.data, cost: formatINR(data.data.cost) }, ...current]);
       setShowPurchaseModal(false);
@@ -215,6 +247,53 @@ export function PharmacyProvider({ children }) {
     }
   };
 
+  // ---------- Excel import (Purchase Entry "Export Data" / upload button) ----------
+  const handleImportExcelFile = async (file) => {
+    if (!file) return;
+
+    const allowedExt = /\.(xlsx|xls|csv)$/i;
+    if (!allowedExt.test(file.name)) {
+      toast.error('Please choose a valid Excel file (.xlsx, .xls, or .csv)');
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[firstSheetName];
+
+      // defval keeps blank cells as '' instead of dropping the key entirely,
+      // so every row ends up with the same set of columns.
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+      if (!rows.length) {
+        toast.error('No data found in that file');
+        return;
+      }
+
+      const { data } = await api.post('/pharmacy/purchases/import', { rows });
+      applyImportedRows(data.data);
+      toast.success(`Imported ${data.count} row(s) from "${file.name}"`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to read or import that Excel file');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleClearImportedPurchases = async () => {
+    try {
+      await api.delete('/pharmacy/purchases/import');
+      setImportedPurchases([]);
+      setImportedColumns([]);
+      toast.success('Imported purchase data cleared');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to clear imported data');
+    }
+  };
+
   const value = {
     inventory, purchaseEntries, sales, alerts,
     showMedicineModal, setShowMedicineModal,
@@ -232,6 +311,9 @@ export function PharmacyProvider({ children }) {
 
     editingStockId, stockValue, setStockValue,
     handleStartEditStock, handleCancelEditStock, handleSaveStock,
+
+    importedPurchases, importedColumns, isImporting,
+    handleImportExcelFile, handleClearImportedPurchases,
   };
 
   return <PharmacyContext.Provider value={value}>{children}</PharmacyContext.Provider>;

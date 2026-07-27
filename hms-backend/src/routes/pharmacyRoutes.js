@@ -7,6 +7,9 @@ const {
   getExpiryAlerts,
   getPurchaseEntries,
   addPurchaseEntry,
+  getPurchaseImports,
+  bulkImportPurchases,
+  clearPurchaseImports,
   getSales,
   createSale,
 } = require('../controllers/pharmacyController');
@@ -22,6 +25,9 @@ router.route('/inventory/:id').put(updateMedicine).delete(deleteMedicine);
 
 router.get('/alerts', getExpiryAlerts);
 
+// NOTE: '/purchases/import' must be registered before any '/purchases/:id'
+// route is ever added, otherwise Express would treat "import" as an :id param.
+router.route('/purchases/import').get(getPurchaseImports).post(bulkImportPurchases).delete(clearPurchaseImports);
 router.route('/purchases').get(getPurchaseEntries).post(addPurchaseEntry);
 router.route('/sales').get(getSales).post(createSale);
 

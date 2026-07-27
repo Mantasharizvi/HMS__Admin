@@ -1,6 +1,7 @@
 const asyncHandler = require('../utils/asyncHandler');
 const Medicine = require('../models/Medicine');
 const PurchaseEntry = require('../models/PurchaseEntry');
+const PurchaseImportRow = require('../models/PurchaseImportRow');
 const Sale = require('../models/Sale');
 const notify = require('../utils/notify');
 
@@ -85,6 +86,44 @@ const addPurchaseEntry = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: purchase });
 });
 
+/* -------------------- Excel-imported purchase data -------------------- */
+// These rows are dynamic/free-form: whatever columns exist in the uploaded
+// Excel sheet get stored as-is under `data` and rendered as-is on the frontend.
+
+// @route   GET /api/pharmacy/purchases/import
+const getPurchaseImports = asyncHandler(async (req, res) => {
+  const rows = await PurchaseImportRow.find().sort({ createdAt: -1 });
+  res.json({ success: true, count: rows.length, data: rows });
+});
+
+// @route   POST /api/pharmacy/purchases/import
+// body: { rows: [ { <col1>: val, <col2>: val, ... }, ... ] }
+const bulkImportPurchases = asyncHandler(async (req, res) => {
+  const { rows } = req.body;
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    res.status(400);
+    throw new Error('No rows found to import');
+  }
+  if (rows.length > 5000) {
+    res.status(400);
+    throw new Error('Too many rows in one file (max 5000). Please split the file.');
+  }
+
+  const importBatch = new Date().toISOString();
+  const docs = rows.map((row) => ({ data: row, importBatch }));
+  const created = await PurchaseImportRow.insertMany(docs);
+
+  res.status(201).json({ success: true, count: created.length, data: created });
+});
+
+// @route   DELETE /api/pharmacy/purchases/import
+// Clears all previously imported Excel rows (used before re-importing a fresh file).
+const clearPurchaseImports = asyncHandler(async (req, res) => {
+  await PurchaseImportRow.deleteMany({});
+  res.json({ success: true, message: 'Imported purchase data cleared' });
+});
+
 /* -------------------- Sales / billing -------------------- */
 
 // @route   GET /api/pharmacy/sales
@@ -124,6 +163,9 @@ module.exports = {
   getExpiryAlerts,
   getPurchaseEntries,
   addPurchaseEntry,
+  getPurchaseImports,
+  bulkImportPurchases,
+  clearPurchaseImports,
   getSales,
   createSale,
 };
