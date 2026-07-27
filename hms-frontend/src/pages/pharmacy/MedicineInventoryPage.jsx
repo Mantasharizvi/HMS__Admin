@@ -3,6 +3,7 @@ import PageHeader from '../../components/common/PageHeader';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Select from '../../components/common/Select';
+import SearchableSelect from '../../components/common/SearchableSelect';
 import Table from '../../components/common/Table';
 import FormModal from '../../components/common/FormModal';
 import { usePharmacy, inventoryColumns } from '../../context/PharmacyContext';
@@ -60,15 +61,13 @@ export default function MedicineInventoryPage() {
         title="Add Medicine Form"
         submitLabel="Save Medicine"
       >
-        <Select
+       <SearchableSelect
           label="Medicine Name"
           value={medicineForm.name}
-          onChange={(e) => handleMedicineSelect(e.target.value)}
+          onChange={handleMedicineSelect}
           error={medicineErrors.name}
-          options={[
-            { value: '', label: 'Select medicine' },
-            ...purchasedMedicines.map((row) => ({ value: row.medicine, label: row.medicine })),
-          ]}
+          placeholder="Search medicine…"
+          options={purchasedMedicines.map((row) => ({ value: row.medicine, label: row.medicine }))}
         />
         <Select
           label="Category"
@@ -112,11 +111,12 @@ export default function MedicineInventoryPage() {
           onChange={(e) => setMedicineForm({ ...medicineForm, stock: e.target.value })}
           error={medicineErrors.stock}
         />
-        <Select
+      <Input
           label="Supplier"
+          placeholder="Auto-filled from purchase entry"
           value={medicineForm.supplier}
           onChange={(e) => setMedicineForm({ ...medicineForm, supplier: e.target.value })}
-          options={[{ value: 'medisupply', label: 'MediSupply Co.' }, { value: 'lifecare', label: 'LifeCare Pharma' }]}
+          error={medicineErrors.supplier}
         />
       </FormModal>
     </div>

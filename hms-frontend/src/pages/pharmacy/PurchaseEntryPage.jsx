@@ -28,6 +28,12 @@ export default function PurchaseEntryPage() {
   };
 
   // ---------- Merge manual entries + Excel-imported rows into one table ----------
+  // Batch-number columns can arrive under several raw header spellings from
+  // older Excel imports (e.g. "Batch No", "Batch"). This checks all known
+  // variations so they all land in the same single displayed column.
+  const BATCH_SYNONYMS = new Set(['batchnumber', 'batchno', 'batch']);
+  const normalizeKey = (k) => k.toString().trim().toLowerCase().replace(/[\s_\-.]/g, '');
+
   const baseColumns = [
     { key: 'source', header: 'Source', render: (row) => (
       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${row.source === 'Excel Import' ? 'bg-blue-50 text-blue-700' : 'bg-teal-50 text-teal-700'}`}>
@@ -42,14 +48,20 @@ export default function PurchaseEntryPage() {
     { key: 'category', header: 'Category', render: (row) => row.category || '—' },
     { key: 'unit', header: 'Unit', render: (row) => row.unit || '—' },
     { key: 'expiry', header: 'Expiry Date', render: (row) => row.expiry || '—' },
-    { key: 'batchNumber', header: 'Batch Number', render: (row) => row.batchNumber || '—' },
+    { key: 'batchNumber', header: 'Batch No', render: (row) => {
+        if (row.batchNumber) return row.batchNumber;
+        const match = Object.entries(row).find(([k]) => BATCH_SYNONYMS.has(normalizeKey(k)));
+        return (match && match[1]) || '—';
+      },
+    },
   ];
   const baseKeys = new Set(baseColumns.map((c) => c.key));
 
-  // Any extra columns that came from the uploaded Excel headers (e.g. "Batch No",
-  // "Invoice No") that don't match one of the base columns above get appended too.
+  // Any extra columns that came from the uploaded Excel headers (e.g. "Invoice No")
+  // that don't match one of the base columns above get appended too. Batch-number
+  // variations are excluded here since they're already merged into the column above.
   const extraColumns = importedColumns
-    .filter((c) => !baseKeys.has(c.key))
+    .filter((c) => !baseKeys.has(c.key) && !BATCH_SYNONYMS.has(normalizeKey(c.key)))
     .map((c) => ({ ...c, render: (row) => (row[c.key] === '' || row[c.key] == null ? '—' : row[c.key]) }));
 
   const combinedColumns = [...baseColumns, ...extraColumns];
