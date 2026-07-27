@@ -11,6 +11,7 @@ const purchaseEntrySchema = new mongoose.Schema(
     category: { type: String, default: '' },
     unit: { type: String, default: '' },
     expiry: { type: String, default: '' }, // ISO date string
+    batchNumber: { type: String, default: '' },
   },
   { timestamps: true }
 );

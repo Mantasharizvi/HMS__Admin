@@ -10,10 +10,37 @@ import { usePharmacy, inventoryColumns } from '../../context/PharmacyContext';
 export default function MedicineInventoryPage() {
   const {
     inventory,
+    purchaseEntries, importedPurchases,
     showMedicineModal, setShowMedicineModal,
     medicineForm, setMedicineForm, medicineErrors,
     handleOpenMedicineModal, handleSaveMedicine,
   } = usePharmacy();
+
+  // Medicines available to pick from = everything that has ever been purchased
+  // (manual Purchase Entry rows + Excel-imported rows), de-duplicated by name.
+  const purchasedMedicines = [];
+  const seenMedicineNames = new Set();
+  [...purchaseEntries, ...importedPurchases].forEach((row) => {
+    if (row.medicine && !seenMedicineNames.has(row.medicine)) {
+      seenMedicineNames.add(row.medicine);
+      purchasedMedicines.push(row);
+    }
+  });
+
+  const handleMedicineSelect = (medicineName) => {
+    const match = [...purchaseEntries, ...importedPurchases].find((row) => row.medicine === medicineName);
+    setMedicineForm({
+      ...medicineForm,
+      name: medicineName,
+      category: match?.category || medicineForm.category,
+      batch: match?.batchNumber || medicineForm.batch,
+      expiry: match?.expiry || medicineForm.expiry,
+      stock: match?.qty ?? medicineForm.stock,
+      supplier: match?.supplier || medicineForm.supplier,
+      // purchasePrice and sellingPrice are intentionally left untouched -
+      // those are always entered manually for the inventory record.
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -33,12 +60,15 @@ export default function MedicineInventoryPage() {
         title="Add Medicine Form"
         submitLabel="Save Medicine"
       >
-        <Input
+        <Select
           label="Medicine Name"
-          placeholder="Enter medicine name"
           value={medicineForm.name}
-          onChange={(e) => setMedicineForm({ ...medicineForm, name: e.target.value })}
+          onChange={(e) => handleMedicineSelect(e.target.value)}
           error={medicineErrors.name}
+          options={[
+            { value: '', label: 'Select medicine' },
+            ...purchasedMedicines.map((row) => ({ value: row.medicine, label: row.medicine })),
+          ]}
         />
         <Select
           label="Category"

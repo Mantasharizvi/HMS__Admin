@@ -12,8 +12,8 @@ export const inventoryColumns = [
   { key: 'medicineCode', header: 'Medicine ID' },
   { key: 'name', header: 'Medicine' },
   { key: 'category', header: 'Category' },
-  { key: 'stock', header: 'Stock' },
-  { key: 'unit', header: 'Unit' },
+  { key: 'purchasePrice', header: 'Purchase Price', render: (row) => formatINR(row.purchasePrice) },
+  { key: 'sellingPrice', header: 'Sale Price', render: (row) => formatINR(row.sellingPrice) },
   { key: 'expiry', header: 'Expiry' },
 ];
 
@@ -27,7 +27,7 @@ const medicineSchema = {
   stock: [rules.required('Initial stock is required'), rules.numeric(), rules.positive()],
 };
 
-const emptyPurchase = { supplier: '', medicine: '', qty: '', cost: '', category: '', unit: '', expiry: '' };
+const emptyPurchase = { supplier: '', medicine: '', qty: '', cost: '', category: '', unit: '', expiry: '', batchNumber: '' };
 const purchaseSchema = {
   supplier: [rules.required('Supplier is required')],
   medicine: [rules.required('Please select a medicine')],
@@ -57,6 +57,7 @@ const CANONICAL_KEY_MAP = {
   category: 'category',
   unit: 'unit', units: 'unit',
   expiry: 'expiry', expirydate: 'expiry', exp: 'expiry', expdate: 'expiry',
+  batchnumber: 'batchNumber', batchno: 'batchNumber', batch: 'batchNumber',
 };
 
 const normalizeHeaderKey = (key) => key.toString().trim().toLowerCase().replace(/[\s_\-.]/g, '');
@@ -206,6 +207,7 @@ export function PharmacyProvider({ children }) {
         category: purchaseForm.category,
         unit: purchaseForm.unit,
         expiry: purchaseForm.expiry,
+        batchNumber: purchaseForm.batchNumber,
       });
       setPurchaseEntries((current) => [{ ...data.data, cost: formatINR(data.data.cost) }, ...current]);
       setShowPurchaseModal(false);
@@ -329,6 +331,7 @@ export function PharmacyProvider({ children }) {
       toast.error(err.response?.data?.message || 'Failed to clear imported data');
     }
   };
+
   const value = {
     inventory, purchaseEntries, sales, alerts,
     showMedicineModal, setShowMedicineModal,

@@ -3,14 +3,13 @@ import { PackagePlus, UploadCloud, Trash2 } from 'lucide-react';
 import PageHeader from '../../components/common/PageHeader';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
-import Select from '../../components/common/Select';
 import Table from '../../components/common/Table';
 import FormModal from '../../components/common/FormModal';
 import { usePharmacy } from '../../context/PharmacyContext';
 
 export default function PurchaseEntryPage() {
   const {
-    purchaseEntries, inventory,
+    purchaseEntries,
     showPurchaseModal, setShowPurchaseModal,
     purchaseForm, setPurchaseForm, purchaseErrors,
     handleOpenPurchaseModal, handleSavePurchase,
@@ -43,6 +42,7 @@ export default function PurchaseEntryPage() {
     { key: 'category', header: 'Category', render: (row) => row.category || '—' },
     { key: 'unit', header: 'Unit', render: (row) => row.unit || '—' },
     { key: 'expiry', header: 'Expiry Date', render: (row) => row.expiry || '—' },
+    { key: 'batchNumber', header: 'Batch Number', render: (row) => row.batchNumber || '—' },
   ];
   const baseKeys = new Set(baseColumns.map((c) => c.key));
 
@@ -55,9 +55,9 @@ export default function PurchaseEntryPage() {
   const combinedColumns = [...baseColumns, ...extraColumns];
 
   const combinedData = [
-  ...purchaseEntries.map((p) => ({ ...p, source: 'Manual' })),
-  ...importedPurchases.map((r) => ({ ...r, source: 'Excel Import' })),
-];
+    ...purchaseEntries.map((p) => ({ ...p, source: 'Manual' })),
+    ...importedPurchases.map((r) => ({ ...r, source: 'Excel Import' })),
+  ];
 
   return (
     <div className="space-y-6">
@@ -75,7 +75,7 @@ export default function PurchaseEntryPage() {
               className="hidden"
             />
             <Button icon={UploadCloud} variant="secondary" onClick={handleBrowseClick} disabled={isImporting}>
-              {isImporting ? 'Importing…' : 'Import Data'}
+              {isImporting ? 'Importing…' : 'Export Data'}
             </Button>
             <Button icon={PackagePlus} onClick={handleOpenPurchaseModal}>Add Purchase Entry</Button>
           </div>
@@ -109,29 +109,12 @@ export default function PurchaseEntryPage() {
           onChange={(e) => setPurchaseForm({ ...purchaseForm, supplier: e.target.value })}
           error={purchaseErrors.supplier}
         />
-        <Select
+        <Input
   label="Medicine"
+  placeholder="Enter medicine name"
   value={purchaseForm.medicine}
-  onChange={(e) => {
-    const medicine = e.target.value;
-    const item = inventory.find((m) => m.name === medicine);
-    const qty = item?.stock ?? '';
-    const price = item?.purchasePrice || 0;
-    setPurchaseForm({
-      ...purchaseForm,
-      medicine,
-      qty,
-      cost: price * (Number(qty) || 0),
-      category: item?.category || '',
-      unit: item?.unit || '',
-      expiry: item?.expiry || '',
-    });
-  }}
+  onChange={(e) => setPurchaseForm({ ...purchaseForm, medicine: e.target.value })}
   error={purchaseErrors.medicine}
-  options={[
-    { value: '', label: 'Select medicine' },
-    ...inventory.map((m) => ({ value: m.name, label: m.name })),
-  ]}
 />
       <Input
   label="Category"
@@ -152,16 +135,17 @@ export default function PurchaseEntryPage() {
   onChange={(e) => setPurchaseForm({ ...purchaseForm, expiry: e.target.value })}
 />
       <Input
+  label="Batch Number"
+  placeholder="Enter batch number"
+  value={purchaseForm.batchNumber}
+  onChange={(e) => setPurchaseForm({ ...purchaseForm, batchNumber: e.target.value })}
+/>
+      <Input
   label="Quantity"
   type="number"
   placeholder="0"
   value={purchaseForm.qty}
-  onChange={(e) => {
-    const qty = e.target.value;
-    const item = inventory.find((m) => m.name === purchaseForm.medicine);
-    const price = item?.purchasePrice || 0;
-    setPurchaseForm({ ...purchaseForm, qty, cost: price * (Number(qty) || 0) });
-  }}
+  onChange={(e) => setPurchaseForm({ ...purchaseForm, qty: e.target.value })}
   error={purchaseErrors.qty}
 />
   <Input
@@ -169,8 +153,7 @@ export default function PurchaseEntryPage() {
   type="number"
   placeholder="₹0.00"
   value={purchaseForm.cost}
-  readOnly
-  disabled
+  onChange={(e) => setPurchaseForm({ ...purchaseForm, cost: e.target.value })}
   error={purchaseErrors.cost}
 />
       </FormModal>
