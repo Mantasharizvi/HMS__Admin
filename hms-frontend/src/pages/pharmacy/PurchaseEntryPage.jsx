@@ -55,9 +55,9 @@ export default function PurchaseEntryPage() {
   const combinedColumns = [...baseColumns, ...extraColumns];
 
   const combinedData = [
-    ...purchaseEntries.map((p) => ({ ...p, source: 'Manual' })),
-    ...importedPurchases.map((r) => ({ ...r, source: 'Excel Import' })),
-  ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  ...purchaseEntries.map((p) => ({ ...p, source: 'Manual' })),
+  ...importedPurchases.map((r) => ({ ...r, source: 'Excel Import' })),
+];
 
   return (
     <div className="space-y-6">
