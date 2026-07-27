@@ -75,7 +75,7 @@ export default function PurchaseEntryPage() {
               className="hidden"
             />
             <Button icon={UploadCloud} variant="secondary" onClick={handleBrowseClick} disabled={isImporting}>
-              {isImporting ? 'Importing…' : 'Export Data'}
+              {isImporting ? 'Importing…' : 'Import Data'}
             </Button>
             <Button icon={PackagePlus} onClick={handleOpenPurchaseModal}>Add Purchase Entry</Button>
           </div>
