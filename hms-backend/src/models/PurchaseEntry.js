@@ -5,6 +5,12 @@ const purchaseEntrySchema = new mongoose.Schema(
   {
     purchaseCode: { type: String, unique: true }, // e.g. PUR-201
     supplier: { type: String, required: true },
+    // The real link to inventory (see Sale model for why name-only matching
+    // was unsafe). Purchase entries always restock an EXISTING medicine
+    // record — adding a brand-new medicine still happens on the Inventory
+    // page (Add Medicine), which is the single source of truth for names.
+    medicineId: { type: mongoose.Schema.Types.ObjectId, ref: 'Medicine', required: true },
+    // Denormalized copy of Medicine.name, always set server-side.
     medicine: { type: String, required: true },
     qty: { type: Number, required: true },
     cost: { type: Number, required: true },

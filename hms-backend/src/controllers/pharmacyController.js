@@ -134,16 +134,48 @@ const getSales = asyncHandler(async (req, res) => {
 
 // @route   POST /api/pharmacy/sales
 const createSale = asyncHandler(async (req, res) => {
-  const sale = await Sale.create(req.body);
+  const { medicine, qty } = req.body;
+  const saleQty = Math.abs(Number(qty));
 
-  // Decrease stock for the matching medicine, if found by name
+  if (!medicine || !saleQty || saleQty <= 0) {
+    res.status(400);
+    throw new Error('A valid medicine name and quantity are required');
+  }
+
+  // Atomically check AND decrement stock in a single DB operation, so two
+  // simultaneous sales can never both pass a "check" that's already stale
+  // by the time they write (classic race condition otherwise). The
+  // `stock: { $gte: saleQty }` clause makes this fail (return null)
+  // instead of allowing stock to go negative.
   const updatedMedicine = await Medicine.findOneAndUpdate(
-    { name: sale.medicine },
-    { $inc: { stock: -Math.abs(sale.qty) } },
+    { name: medicine, stock: { $gte: saleQty } },
+    { $inc: { stock: -saleQty } },
     { new: true }
   );
 
-  if (updatedMedicine && updatedMedicine.stock <= LOW_STOCK_THRESHOLD) {
+  if (!updatedMedicine) {
+    // Figure out *why* it failed, just to give a clearer error message.
+    const existing = await Medicine.findOne({ name: medicine });
+    res.status(400);
+    if (!existing) {
+      throw new Error(`Medicine "${medicine}" not found in inventory`);
+    }
+    throw new Error(
+      `Insufficient stock for "${medicine}". Available: ${existing.stock}, requested: ${saleQty}`
+    );
+  }
+
+  // Stock is already reserved/decremented at this point. If creating the
+  // sale record itself fails, roll the stock back so it isn't lost.
+  let sale;
+  try {
+    sale = await Sale.create({ ...req.body, qty: saleQty });
+  } catch (err) {
+    await Medicine.findOneAndUpdate({ name: medicine }, { $inc: { stock: saleQty } });
+    throw err;
+  }
+
+  if (updatedMedicine.stock <= LOW_STOCK_THRESHOLD) {
     notify({
       type: 'warning',
       title: 'Low stock alert',

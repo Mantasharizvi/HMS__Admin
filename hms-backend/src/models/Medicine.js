@@ -26,4 +26,8 @@ medicineSchema.pre('save', async function (next) {
   next();
 });
 
+// Speeds up the case-insensitive duplicate-name check in addMedicine(),
+// and the medicineId-resolution lookups used by purchases/sales import.
+medicineSchema.index({ name: 1 });
+
 module.exports = mongoose.model('Medicine', medicineSchema);
