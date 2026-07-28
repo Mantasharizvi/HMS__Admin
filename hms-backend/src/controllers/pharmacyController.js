@@ -102,35 +102,40 @@ const addPurchaseEntry = asyncHandler(async (req, res) => {
     throw new Error('A valid quantity is required');
   }
 
-  // Restock by medicineId, not by typed/free-text name - this is what
-  // actually guarantees the purchase lands on the right inventory row even
-  // if two medicines happen to share a similar name.
-  const updatedMedicine = await Medicine.findByIdAndUpdate(
-    medicineId,
-    { $inc: { stock: purchaseQty } },
-    { new: true }
-  );
+  // Medicine is now free text - resolve it against existing inventory
+  // (case-insensitive), same matching used for Excel-imported rows. A
+  // match restocks that inventory row; no match just saves the entry for
+  // record-keeping without touching stock.
+  const matchedMedicine = await Medicine.findOne({
+    name: { $regex: `^${medicineName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
+  });
 
-  if (!updatedMedicine) {
-    res.status(404);
-    throw new Error('Selected medicine no longer exists in inventory');
+  let updatedMedicine = null;
+  if (matchedMedicine) {
+    updatedMedicine = await Medicine.findByIdAndUpdate(
+      matchedMedicine._id,
+      { $inc: { stock: purchaseQty } },
+      { new: true }
+    );
   }
 
   let purchase;
   try {
     purchase = await PurchaseEntry.create({
       ...req.body,
-      medicineId: updatedMedicine._id,
-      medicine: updatedMedicine.name, // denormalized name resolved server-side, never trust the client's copy
+      medicineId: updatedMedicine ? updatedMedicine._id : null,
+      medicine: medicineName,
       qty: purchaseQty,
     });
   } catch (err) {
     // Roll back the stock bump if the purchase record itself failed to save
-    await Medicine.findByIdAndUpdate(medicineId, { $inc: { stock: -purchaseQty } });
+    if (updatedMedicine) {
+      await Medicine.findByIdAndUpdate(updatedMedicine._id, { $inc: { stock: -purchaseQty } });
+    }
     throw err;
   }
 
-  res.status(201).json({ success: true, data: purchase });
+  res.status(201).json({ success: true, data: purchase, matched: Boolean(updatedMedicine) });
 });
 
 /* -------------------- Excel-imported purchase data -------------------- */
