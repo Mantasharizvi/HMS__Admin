@@ -3,19 +3,27 @@ import { PackagePlus, UploadCloud, Trash2 } from 'lucide-react';
 import PageHeader from '../../components/common/PageHeader';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
+import SearchableSelect from '../../components/common/SearchableSelect';
 import Table from '../../components/common/Table';
 import FormModal from '../../components/common/FormModal';
 import { usePharmacy } from '../../context/PharmacyContext';
 
 export default function PurchaseEntryPage() {
   const {
-    purchaseEntries,
+    purchaseEntries, inventory,
     showPurchaseModal, setShowPurchaseModal,
     purchaseForm, setPurchaseForm, purchaseErrors,
     handleOpenPurchaseModal, handleSavePurchase,
     importedPurchases, importedColumns, isImporting,
     handleImportExcelFile, handleClearImportedPurchases,
   } = usePharmacy();
+
+  // value is the Medicine _id, same convention as the Sales Billing page,
+  // so a purchase entry can never land on the wrong inventory row.
+  const medicineOptions = inventory.map((m) => ({
+    value: m._id,
+    label: `${m.name} (${m.stock} in stock)`,
+  }));
 
   const fileInputRef = useRef(null);
 
@@ -121,13 +129,14 @@ export default function PurchaseEntryPage() {
           onChange={(e) => setPurchaseForm({ ...purchaseForm, supplier: e.target.value })}
           error={purchaseErrors.supplier}
         />
-        <Input
-  label="Medicine"
-  placeholder="Enter medicine name"
-  value={purchaseForm.medicine}
-  onChange={(e) => setPurchaseForm({ ...purchaseForm, medicine: e.target.value })}
-  error={purchaseErrors.medicine}
-/>
+        <SearchableSelect
+          label="Medicine"
+          placeholder="Search medicine…"
+          value={purchaseForm.medicine}
+          onChange={(value) => setPurchaseForm({ ...purchaseForm, medicine: value })}
+          options={medicineOptions}
+          error={purchaseErrors.medicine}
+        />
       <Input
   label="Category"
   placeholder="e.g. Antibiotics"

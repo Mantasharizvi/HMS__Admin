@@ -196,9 +196,12 @@ export function PharmacyProvider({ children }) {
       return;
     }
     try {
+      // purchaseForm.medicine now holds the selected Medicine's _id (see
+      // PurchaseEntryPage's SearchableSelect) - the backend resolves the
+      // display name from that id itself, so it isn't sent here.
       const { data } = await api.post('/pharmacy/purchases', {
         supplier: purchaseForm.supplier,
-        medicine: purchaseForm.medicine,
+        medicineId: purchaseForm.medicine,
         qty: Number(purchaseForm.qty),
         cost: Number(purchaseForm.cost),
         category: purchaseForm.category,
@@ -248,7 +251,7 @@ try {
       for (const item of items) {
         const { data } = await api.post('/pharmacy/sales', {
           patient: saleForm.patient,
-          medicine: item.medicine,
+          medicineId: item.medicineId,
           qty: Number(item.qty),
           amount: Number(item.amount),
           billCode,

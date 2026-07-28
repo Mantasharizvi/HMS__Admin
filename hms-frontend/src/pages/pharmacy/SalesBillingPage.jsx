@@ -28,8 +28,10 @@ export default function SalesBillingPage() {
   const [cartQty, setCartQty] = useState('');
   const [cartItems, setCartItems] = useState([]);
 
+  // value is the Medicine _id (not the name) so the backend can look the
+  // item up unambiguously, even if two medicines share a similar name.
   const medicineOptions = inventory.map((m) => ({
-    value: m.name,
+    value: m._id,
     label: `${m.name} (${m.stock} in stock)`,
   }));
 
@@ -58,11 +60,23 @@ export default function SalesBillingPage() {
       toast.error('Please enter a valid quantity');
       return;
     }
-    const item = inventory.find((m) => m.name === cartMedicine);
-    const price = item?.sellingPrice || 0;
+    // cartMedicine now holds the selected Medicine's _id.
+    const item = inventory.find((m) => m._id === cartMedicine);
+    if (!item) {
+      toast.error('Selected medicine could not be found - please re-select it');
+      return;
+    }
+    if (Number(cartQty) > item.stock) {
+      toast.error(`Only ${item.stock} in stock for "${item.name}"`);
+      return;
+    }
+    const price = item.sellingPrice || 0;
     const amount = price * Number(cartQty);
 
-    setCartItems([...cartItems, { medicine: cartMedicine, qty: Number(cartQty), amount }]);
+    setCartItems([
+      ...cartItems,
+      { medicineId: item._id, medicine: item.name, qty: Number(cartQty), amount },
+    ]);
     setCartMedicine('');
     setCartQty('');
   };
