@@ -89,12 +89,13 @@ const getPurchaseEntries = asyncHandler(async (req, res) => {
 
 // @route   POST /api/pharmacy/purchases
 const addPurchaseEntry = asyncHandler(async (req, res) => {
-  const { medicineId, qty } = req.body;
+  const { medicine, qty } = req.body;
+  const medicineName = String(medicine ?? '').trim();
   const purchaseQty = Math.abs(Number(qty));
 
-  if (!medicineId) {
+  if (!medicineName) {
     res.status(400);
-    throw new Error('Please select a medicine from inventory');
+    throw new Error('Please enter a medicine name');
   }
   if (!purchaseQty || purchaseQty <= 0) {
     res.status(400);

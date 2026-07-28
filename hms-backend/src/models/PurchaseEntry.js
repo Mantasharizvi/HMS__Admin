@@ -5,11 +5,13 @@ const purchaseEntrySchema = new mongoose.Schema(
   {
     purchaseCode: { type: String, unique: true }, // e.g. PUR-201
     supplier: { type: String, required: true },
-    // The real link to inventory (see Sale model for why name-only matching
-    // was unsafe). Purchase entries always restock an EXISTING medicine
-    // record — adding a brand-new medicine still happens on the Inventory
-    // page (Add Medicine), which is the single source of truth for names.
-    medicineId: { type: mongoose.Schema.Types.ObjectId, ref: 'Medicine', required: true },
+    // The medicine name is now entered as free text on the Purchase Entry
+    // form. When it matches an existing inventory item (case-insensitive,
+    // resolved server-side) this still links to that Medicine record and
+    // restocks it; when it doesn't match anything yet, the entry is still
+    // saved for record-keeping (same behavior as unmatched Excel-import
+    // rows) but medicineId stays null and stock isn't auto-incremented.
+    medicineId: { type: mongoose.Schema.Types.ObjectId, ref: 'Medicine', default: null },
     // Denormalized copy of Medicine.name, always set server-side.
     medicine: { type: String, required: true },
     qty: { type: Number, required: true },
