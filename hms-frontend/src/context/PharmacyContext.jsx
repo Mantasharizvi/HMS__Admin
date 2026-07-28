@@ -35,12 +35,9 @@ const purchaseSchema = {
   cost: [rules.required('Cost is required'), rules.numeric(), rules.positive()],
 };
 
-const emptySale = { patient: '', medicine: '', qty: '', amount: '' };
+const emptySale = { patient: '' };
 const saleSchema = {
   patient: [rules.required('Patient name is required')],
-  medicine: [rules.required('Please select a medicine')],
-  qty: [rules.required('Quantity is required'), rules.numeric(), rules.positive()],
-  amount: [rules.required('Amount is required'), rules.numeric(), rules.positive()],
 };
 
 const formatINR = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
@@ -227,7 +224,11 @@ export function PharmacyProvider({ children }) {
     setShowSaleModal(true);
   };
 
-  const handleSaveSale = async (e) => {
+// `items` = [{ medicine, qty, amount }, ...] - one bill can now carry several
+  // medicines. The backend's Sale record only holds one medicine per row, so
+  // each cart item is posted as its own sale (all sharing the same patient
+  // name) instead of changing the backend schema.
+  const handleSaveSale = async (e, items, onSaved) => {
     e.preventDefault();
     const errors = validateForm(saleForm, saleSchema);
     setSaleErrors(errors);
@@ -235,16 +236,25 @@ export function PharmacyProvider({ children }) {
       toast.error('Please fix the highlighted fields');
       return;
     }
+    if (!items || items.length === 0) {
+      toast.error('Please add at least one medicine to the bill');
+      return;
+    }
     try {
-      const { data } = await api.post('/pharmacy/sales', {
-        patient: saleForm.patient,
-        medicine: saleForm.medicine,
-        qty: Number(saleForm.qty),
-        amount: Number(saleForm.amount),
-      });
-      setSales((current) => [{ ...data.data, amount: formatINR(data.data.amount) }, ...current]);
+      const savedSales = [];
+      for (const item of items) {
+        const { data } = await api.post('/pharmacy/sales', {
+          patient: saleForm.patient,
+          medicine: item.medicine,
+          qty: Number(item.qty),
+          amount: Number(item.amount),
+        });
+        savedSales.push({ ...data.data, amount: formatINR(data.data.amount) });
+      }
+      setSales((current) => [...savedSales, ...current]);
       setShowSaleModal(false);
-      toast.success(`Sale "${data.data.saleCode}" billed successfully`);
+      toast.success(`${savedSales.length} medicine(s) billed successfully`);
+      onSaved?.();
 
       // Stock was decremented server-side - refresh inventory to reflect it.
       api.get('/pharmacy/inventory').then((res) => setInventory(res.data.data)).catch(() => {});
