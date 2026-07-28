@@ -35,6 +35,14 @@ const purchaseSchema = {
   cost: [rules.required('Cost is required'), rules.numeric(), rules.positive()],
 };
 
+// Minimal validation for the quick-add medicine mini-form on Purchase Entry
+// - just enough to satisfy the Medicine model's required fields.
+const quickAddMedicineSchema = {
+  name: [rules.required('Medicine name is required')],
+  category: [rules.required('Category is required')],
+  expiry: [rules.required('Expiry date is required')],
+};
+
 const emptySale = { patient: '' };
 const saleSchema = {
   patient: [rules.required('Patient name is required')],
@@ -90,6 +98,16 @@ export function PharmacyProvider({ children }) {
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [purchaseForm, setPurchaseForm] = useState(emptyPurchase);
   const [purchaseErrors, setPurchaseErrors] = useState({});
+
+  // ---------- Quick-add medicine (from the Purchase Entry dropdown) ----------
+  // Lets staff create a brand-new Medicine record without leaving the
+  // Purchase Entry form, while still going through the real Medicine model
+  // (so it gets a proper _id, duplicate-name check, etc.) instead of
+  // reintroducing free-text medicine names into purchases.
+  const emptyQuickAddMedicine = { name: '', category: '', expiry: '' };
+  const [showQuickAddMedicineModal, setShowQuickAddMedicineModal] = useState(false);
+  const [quickAddMedicineForm, setQuickAddMedicineForm] = useState(emptyQuickAddMedicine);
+  const [quickAddMedicineErrors, setQuickAddMedicineErrors] = useState({});
 
   const [showSaleModal, setShowSaleModal] = useState(false);
   const [saleForm, setSaleForm] = useState(emptySale);
@@ -217,6 +235,43 @@ export function PharmacyProvider({ children }) {
       api.get('/pharmacy/inventory').then((res) => setInventory(res.data.data)).catch(() => {});
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save purchase entry');
+    }
+  };
+
+  // ---------- Quick-add medicine ----------
+  const handleOpenQuickAddMedicine = () => {
+    setQuickAddMedicineForm(emptyQuickAddMedicine);
+    setQuickAddMedicineErrors({});
+    setShowQuickAddMedicineModal(true);
+  };
+
+  // `onCreated(newMedicineId)` lets the caller (Purchase Entry page)
+  // auto-select the medicine it just created, instead of making the user
+  // re-open the dropdown and find it themselves.
+  const handleQuickAddMedicine = async (e, onCreated) => {
+    e.preventDefault();
+    const errors = validateForm(quickAddMedicineForm, quickAddMedicineSchema);
+    setQuickAddMedicineErrors(errors);
+    if (!isValid(errors)) {
+      toast.error('Please fix the highlighted fields');
+      return;
+    }
+    try {
+      // Starts at 0 stock on purpose - the purchase entry being saved right
+      // after this is what actually brings stock in (via /pharmacy/purchases).
+      const { data } = await api.post('/pharmacy/inventory', {
+        name: quickAddMedicineForm.name,
+        category: quickAddMedicineForm.category,
+        expiry: quickAddMedicineForm.expiry,
+        stock: 0,
+        unit: 'Boxes',
+      });
+      setInventory((current) => [data.data, ...current]);
+      setShowQuickAddMedicineModal(false);
+      toast.success(`"${data.data.name}" added to inventory`);
+      onCreated?.(data.data.id || data.data._id);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to add medicine');
     }
   };
 
@@ -359,6 +414,10 @@ try {
     showPurchaseModal, setShowPurchaseModal,
     purchaseForm, setPurchaseForm, purchaseErrors,
     handleOpenPurchaseModal, handleSavePurchase,
+
+    showQuickAddMedicineModal, setShowQuickAddMedicineModal,
+    quickAddMedicineForm, setQuickAddMedicineForm, quickAddMedicineErrors,
+    handleOpenQuickAddMedicine, handleQuickAddMedicine,
 
     showSaleModal, setShowSaleModal,
     saleForm, setSaleForm, saleErrors,

@@ -14,16 +14,37 @@ export default function PurchaseEntryPage() {
     showPurchaseModal, setShowPurchaseModal,
     purchaseForm, setPurchaseForm, purchaseErrors,
     handleOpenPurchaseModal, handleSavePurchase,
+    showQuickAddMedicineModal, setShowQuickAddMedicineModal,
+    quickAddMedicineForm, setQuickAddMedicineForm, quickAddMedicineErrors,
+    handleOpenQuickAddMedicine, handleQuickAddMedicine,
     importedPurchases, importedColumns, isImporting,
     handleImportExcelFile, handleClearImportedPurchases,
   } = usePharmacy();
 
+  const ADD_NEW_MEDICINE = '__add_new_medicine__';
+
   // value is the Medicine _id, same convention as the Sales Billing page,
-  // so a purchase entry can never land on the wrong inventory row.
-  const medicineOptions = inventory.map((m) => ({
-    value: m._id,
-    label: `${m.name} (${m.stock} in stock)`,
-  }));
+  // so a purchase entry can never land on the wrong inventory row. The
+  // "+ Add new medicine" row at the top opens a quick-add mini form instead
+  // of selecting anything - see handleMedicineFieldChange below.
+  const medicineOptions = [
+    { value: ADD_NEW_MEDICINE, label: '+ Add new medicine' },
+    ...inventory.map((m) => ({ value: m._id, label: `${m.name} (${m.stock} in stock)` })),
+  ];
+
+  const handleMedicineFieldChange = (value) => {
+    if (value === ADD_NEW_MEDICINE) {
+      handleOpenQuickAddMedicine();
+      return;
+    }
+    setPurchaseForm({ ...purchaseForm, medicine: value });
+  };
+
+  // Once the quick-add modal creates the medicine, auto-select it here so
+  // the person doesn't have to reopen the dropdown and find it themselves.
+  const handleMedicineCreated = (newMedicineId) => {
+    setPurchaseForm({ ...purchaseForm, medicine: newMedicineId });
+  };
 
   const fileInputRef = useRef(null);
 
@@ -133,7 +154,7 @@ export default function PurchaseEntryPage() {
           label="Medicine"
           placeholder="Search medicine…"
           value={purchaseForm.medicine}
-          onChange={(value) => setPurchaseForm({ ...purchaseForm, medicine: value })}
+          onChange={handleMedicineFieldChange}
           options={medicineOptions}
           error={purchaseErrors.medicine}
         />
@@ -177,6 +198,44 @@ export default function PurchaseEntryPage() {
   onChange={(e) => setPurchaseForm({ ...purchaseForm, cost: e.target.value })}
   error={purchaseErrors.cost}
 />
+      </FormModal>
+
+      {/* Quick-add: creates a real Medicine record (with its own _id) so the
+          purchase entry can still link to it safely, instead of falling
+          back to free-text medicine names. */}
+      <FormModal
+        isOpen={showQuickAddMedicineModal}
+        onClose={() => setShowQuickAddMedicineModal(false)}
+        onSubmit={(e) => handleQuickAddMedicine(e, handleMedicineCreated)}
+        title="Add New Medicine"
+        submitLabel="Add Medicine"
+        size="md"
+      >
+        <Input
+          label="Medicine Name"
+          placeholder="Enter medicine name"
+          value={quickAddMedicineForm.name}
+          onChange={(e) => setQuickAddMedicineForm({ ...quickAddMedicineForm, name: e.target.value })}
+          error={quickAddMedicineErrors.name}
+        />
+        <Input
+          label="Category"
+          placeholder="e.g. Antibiotics"
+          value={quickAddMedicineForm.category}
+          onChange={(e) => setQuickAddMedicineForm({ ...quickAddMedicineForm, category: e.target.value })}
+          error={quickAddMedicineErrors.category}
+        />
+        <Input
+          label="Expiry Date"
+          type="date"
+          value={quickAddMedicineForm.expiry}
+          onChange={(e) => setQuickAddMedicineForm({ ...quickAddMedicineForm, expiry: e.target.value })}
+          error={quickAddMedicineErrors.expiry}
+        />
+        <p className="lg:col-span-2 text-xs text-ink-500">
+          Starts at 0 stock — the quantity you enter on this purchase entry will bring the actual stock in.
+          You can add price and supplier details later from the Inventory page.
+        </p>
       </FormModal>
     </div>
   );
