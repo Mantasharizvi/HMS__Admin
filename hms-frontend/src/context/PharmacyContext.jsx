@@ -240,7 +240,10 @@ export function PharmacyProvider({ children }) {
       toast.error('Please add at least one medicine to the bill');
       return;
     }
-    try {
+try {
+      // One billCode per "Save Sale" click - shared by every item in this bill
+      // so the Sales Billing table can later group them back into one row.
+      const billCode = `BILL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const savedSales = [];
       for (const item of items) {
         const { data } = await api.post('/pharmacy/sales', {
@@ -248,6 +251,7 @@ export function PharmacyProvider({ children }) {
           medicine: item.medicine,
           qty: Number(item.qty),
           amount: Number(item.amount),
+          billCode,
         });
         savedSales.push({ ...data.data, amount: formatINR(data.data.amount) });
       }

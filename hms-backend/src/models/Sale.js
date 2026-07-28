@@ -4,6 +4,7 @@ const { nextSequence } = require('../utils/sequence');
 const saleSchema = new mongoose.Schema(
   {
     saleCode: { type: String, unique: true }, // e.g. SAL-301
+    billCode: { type: String, default: '' }, // shared by every item saved in the same bill
     patient: { type: String, required: true },
     medicine: { type: String, required: true },
     qty: { type: Number, required: true },

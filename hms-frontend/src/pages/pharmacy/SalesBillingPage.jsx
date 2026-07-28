@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Receipt } from 'lucide-react';
 import PageHeader from '../../components/common/PageHeader';
 import Button from '../../components/common/Button';
@@ -8,6 +8,11 @@ import Table from '../../components/common/Table';
 import FormModal from '../../components/common/FormModal';
 import { usePharmacy } from '../../context/PharmacyContext';
 import { useToast } from '../../context/ToastContext';
+
+const formatCurrency = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+// Sale amounts arrive as already-formatted strings (e.g. "₹1,234") - this
+// strips the symbol/commas back out so multiple items can be summed.
+const parseAmount = (val) => Number(String(val).replace(/[^0-9.-]+/g, '')) || 0;
 
 export default function SalesBillingPage() {
   const {
@@ -72,6 +77,26 @@ export default function SalesBillingPage() {
     handleSaveSale(e, cartItems, resetCart);
   };
 
+  // ---------- Group individual Sale rows back into one row per bill ----------
+  // Every item saved from the same "Save Sale" click shares a billCode, so a
+  // patient's whole purchase (however many medicines) shows as a single row
+  // with one Sales ID, a list of medicines + quantities, and a combined total.
+  const groupedSales = useMemo(() => {
+    const map = new Map();
+    const order = [];
+    sales.forEach((sale) => {
+      const key = sale.billCode || sale.saleCode; // fallback for old sales saved before billCode existed
+      if (!map.has(key)) {
+        map.set(key, { id: key, saleCode: sale.saleCode, patient: sale.patient, items: [], amount: 0 });
+        order.push(key);
+      }
+      const group = map.get(key);
+      group.items.push({ medicine: sale.medicine, qty: sale.qty });
+      group.amount += parseAmount(sale.amount);
+    });
+    return order.map((key) => map.get(key));
+  }, [sales]);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -82,13 +107,24 @@ export default function SalesBillingPage() {
 
       <Table
         columns={[
-          { key: 'saleCode', header: 'Sales ID' },
-          { key: 'patient', header: 'Patient' },
-          { key: 'medicine', header: 'Medicine' },
-          { key: 'qty', header: 'Qty' },
-          { key: 'amount', header: 'Amount' },
+          { key: 'saleCode', header: 'Sales ID', render: (row) => row.saleCode },
+          { key: 'patient', header: 'Patient', render: (row) => row.patient },
+          {
+            key: 'medicine',
+            header: 'Medicine',
+            render: (row) => (
+              <div className="space-y-1">
+                {row.items.map((item, i) => (
+                  <div key={i}>
+                    {item.medicine} <span className="text-ink-600">× {item.qty}</span>
+                  </div>
+                ))}
+              </div>
+            ),
+          },
+          { key: 'amount', header: 'Total Amount', render: (row) => formatCurrency(row.amount) },
         ]}
-        data={sales}
+        data={groupedSales}
       />
 
       <FormModal
@@ -97,6 +133,7 @@ export default function SalesBillingPage() {
         onSubmit={handleSubmitBill}
         title="New Sale / Bill"
         submitLabel="Save Sale"
+        size="xl"
       >
         <Input
           label="Patient Name"
@@ -108,7 +145,7 @@ export default function SalesBillingPage() {
 
         {/* ---------- Added Medicines Panel ---------- */}
         {cartItems.length > 0 && (
-          <div className="rounded-lg border border-line bg-surface p-3">
+          <div className="lg:col-span-2 rounded-lg border border-line bg-surface p-3">
             <label className="block text-xs font-semibold text-ink-600 mb-2">Added Medicines:</label>
             <div className="space-y-2">
               {cartItems.map((item, index) => (
@@ -118,7 +155,7 @@ export default function SalesBillingPage() {
                 >
                   <span className="text-ink-900">{item.medicine} × {item.qty}</span>
                   <div className="flex items-center gap-3">
-                    <span className="font-medium text-ink-900">₹{item.amount.toLocaleString('en-IN')}</span>
+                    <span className="font-medium text-ink-900">{formatCurrency(item.amount)}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveCartItem(index)}
@@ -132,13 +169,13 @@ export default function SalesBillingPage() {
             </div>
             <div className="mt-2 pt-2 border-t border-line flex justify-between text-sm font-semibold text-ink-900">
               <span>Total</span>
-              <span>₹{billTotal.toLocaleString('en-IN')}</span>
+              <span>{formatCurrency(billTotal)}</span>
             </div>
           </div>
         )}
 
-        {/* ---------- Medicine + Quantity + Add button ---------- */}
-        <div className="flex flex-col sm:flex-row items-end gap-3 w-full">
+        {/* ---------- Medicine + Quantity + Add button (full-width row) ---------- */}
+        <div className="lg:col-span-2 flex flex-col sm:flex-row items-end gap-3 w-full">
           <div className="flex-1 w-full">
             <SearchableSelect
               label="Medicine"
@@ -148,7 +185,7 @@ export default function SalesBillingPage() {
               options={medicineOptions}
             />
           </div>
-          <div className="w-full sm:w-32">
+          <div className="w-full sm:w-48">
             <Input
               label="Quantity"
               type="number"
@@ -167,14 +204,16 @@ export default function SalesBillingPage() {
           </Button>
         </div>
 
-        <Input
-          label="Bill Amount"
-          type="number"
-          placeholder="₹0.00"
-          value={billTotal}
-          readOnly
-          disabled
-        />
+        <div className="lg:col-span-2">
+          <Input
+            label="Bill Amount"
+            type="number"
+            placeholder="₹0.00"
+            value={billTotal}
+            readOnly
+            disabled
+          />
+        </div>
       </FormModal>
     </div>
   );
