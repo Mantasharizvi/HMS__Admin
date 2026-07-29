@@ -20,10 +20,7 @@ const SearchableSelect = ({
 
   const selectedOption = options.find((o) => o.value === value);
 
-  // Close the dropdown when clicking anywhere outside it. Uses 'click'
-  // (not 'mousedown') so it never races with an option button's own click -
-  // mousedown fires first and was closing the dropdown before the option's
-  // click could register, making selections silently fail.
+  // Close the dropdown when clicking anywhere outside it.
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
@@ -31,8 +28,8 @@ const SearchableSelect = ({
         setQuery('');
       }
     };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const filteredOptions = query
@@ -92,7 +89,7 @@ const SearchableSelect = ({
           </button>
         )}
         {open && !disabled && (
-          <div className="absolute z-[100] mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-line bg-white shadow-lg">
+          <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-line bg-white shadow-lg">
             {filteredOptions.length === 0 ? (
               <p className="px-3.5 py-2.5 text-sm text-ink-400">No medicine found</p>
             ) : (
@@ -100,11 +97,6 @@ const SearchableSelect = ({
                 <button
                   key={option.value}
                   type="button"
-                  // Stops the input from blurring before the click lands -
-                  // without this, some browsers cancel the click entirely
-                  // once the input loses focus mid-gesture, so the option
-                  // never actually gets selected.
-                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleSelect(option)}
                   className={`w-full text-left px-3.5 py-2 text-sm hover:bg-teal-50 ${
                     option.value === value ? 'bg-teal-50 text-teal-700 font-medium' : 'text-ink-900'
