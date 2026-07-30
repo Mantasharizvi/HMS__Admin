@@ -7,6 +7,15 @@ const notify = require('../utils/notify');
 
 const LOW_STOCK_THRESHOLD = 20;
 
+const parseExpiryDate = (value) => {
+  const str = String(value).trim();
+  const dmy = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (dmy) {
+    const [, d, m, y] = dmy;
+    return new Date(`${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`);
+  }
+  return new Date(str);
+};
 /* -------------------- Inventory -------------------- */
 
 // @route   GET /api/pharmacy/inventory
@@ -196,7 +205,7 @@ const bulkImportPurchases = asyncHandler(async (req, res) => {
       rejected.push({ row: rowNumber, reason: `Cost must be a non-negative number (got "${row.cost}")` });
       return;
     }
-    if (row.expiry && Number.isNaN(new Date(row.expiry).getTime())) {
+   if (row.expiry && Number.isNaN(parseExpiryDate(row.expiry).getTime())) {
       rejected.push({ row: rowNumber, reason: `Expiry date is not a recognizable date (got "${row.expiry}")` });
       return;
     }
