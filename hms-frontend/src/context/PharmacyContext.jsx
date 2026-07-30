@@ -138,7 +138,8 @@ export function PharmacyProvider({ children }) {
     const columns = [];
     tableRows.forEach((row) => {
       Object.keys(row).forEach((key) => {
-        if (key === 'id' || key === 'createdAt' || seen.has(key)) return;
+
+      if (key === 'id' || key === 'createdAt' || key === 'medicineId' || key === 'matched' || seen.has(key)) return;
         seen.add(key);
         columns.push({ key, header: key });
       });
