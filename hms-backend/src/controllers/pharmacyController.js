@@ -88,6 +88,34 @@ const getExpiryAlerts = asyncHandler(async (req, res) => {
   res.json({ success: true, count: alerts.length, data: alerts });
 });
 
+// Escapes regex special characters so a medicine name can be safely used
+// inside a case-insensitive exact-match RegExp.
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// A medicine's purchase history can live in either of two places - manual
+// entries (PurchaseEntry) or Excel-imported rows (PurchaseImportRow). This
+// looks in BOTH, by medicine name (case-insensitive, trimmed), and returns
+// whichever one is most recent, so a new purchase always merges into the
+// single latest record for that medicine regardless of where it came from.
+// Returns null if this medicine has no purchase history yet.
+const findExistingPurchaseForMedicine = async (medicineName) => {
+  const nameRegex = new RegExp(`^${escapeRegex(String(medicineName).trim())}$`, 'i');
+
+  const [manualMatch, importMatch] = await Promise.all([
+    PurchaseEntry.findOne({ medicine: nameRegex }).sort({ createdAt: -1 }),
+    PurchaseImportRow.findOne({ 'data.medicine': nameRegex }).sort({ createdAt: -1 }),
+  ]);
+
+  if (manualMatch && importMatch) {
+    return manualMatch.createdAt >= importMatch.createdAt
+      ? { type: 'manual', doc: manualMatch }
+      : { type: 'import', doc: importMatch };
+  }
+  if (manualMatch) return { type: 'manual', doc: manualMatch };
+  if (importMatch) return { type: 'import', doc: importMatch };
+  return null;
+};
+
 /* -------------------- Purchase entries -------------------- */
 
 // @route   GET /api/pharmacy/purchases
@@ -128,23 +156,75 @@ const addPurchaseEntry = asyncHandler(async (req, res) => {
     );
   }
 
-  let purchase;
   try {
-    purchase = await PurchaseEntry.create({
+    // This medicine may already have a purchase entry on record - either a
+    // prior Manual entry or a previously Excel-imported row. If so, merge
+    // this new purchase into that same row (qty/cost accumulate, old
+    // qty/expiry are kept as previousQty/previousExpiry) instead of adding
+    // a brand-new line for the same medicine.
+    const mergeTarget = await findExistingPurchaseForMedicine(medicineName);
+
+    if (mergeTarget?.type === 'manual') {
+      const existing = mergeTarget.doc;
+      const previousQty = existing.qty;
+      const previousExpiry = existing.expiry;
+      existing.supplier = req.body.supplier || existing.supplier;
+      existing.qty = Number(existing.qty || 0) + purchaseQty;
+      existing.cost = Number(existing.cost || 0) + Number(req.body.cost || 0);
+      existing.category = req.body.category || existing.category;
+      existing.unit = req.body.unit || existing.unit;
+      existing.expiry = req.body.expiry || existing.expiry;
+      existing.batchNumber = req.body.batchNumber || existing.batchNumber;
+      existing.previousQty = previousQty;
+      existing.previousExpiry = previousExpiry;
+      if (updatedMedicine) existing.medicineId = updatedMedicine._id;
+      await existing.save();
+      return res.status(200).json({
+        success: true, data: existing, matched: Boolean(updatedMedicine), merged: true, mergedInto: 'manual',
+      });
+    }
+
+    if (mergeTarget?.type === 'import') {
+      const existing = mergeTarget.doc;
+      const previousQty = existing.data.qty;
+      const previousExpiry = existing.data.expiry;
+      existing.data = {
+        ...existing.data,
+        supplier: req.body.supplier || existing.data.supplier,
+        medicine: medicineName,
+        qty: Number(existing.data.qty || 0) + purchaseQty,
+        cost: Number(existing.data.cost || 0) + Number(req.body.cost || 0),
+        category: req.body.category || existing.data.category,
+        unit: req.body.unit || existing.data.unit,
+        expiry: req.body.expiry || existing.data.expiry,
+        batchNumber: req.body.batchNumber || existing.data.batchNumber,
+        medicineId: updatedMedicine ? updatedMedicine._id.toString() : existing.data.medicineId,
+        matched: Boolean(updatedMedicine) || Boolean(existing.data.matched),
+        previousQty,
+        previousExpiry,
+      };
+      existing.markModified('data');
+      await existing.save();
+      return res.status(200).json({
+        success: true, data: existing, matched: Boolean(updatedMedicine), merged: true, mergedInto: 'import',
+      });
+    }
+
+    // No existing purchase record for this medicine yet - create a fresh one.
+    const purchase = await PurchaseEntry.create({
       ...req.body,
       medicineId: updatedMedicine ? updatedMedicine._id : null,
       medicine: medicineName,
       qty: purchaseQty,
     });
+    return res.status(201).json({ success: true, data: purchase, matched: Boolean(updatedMedicine), merged: false });
   } catch (err) {
-    // Roll back the stock bump if the purchase record itself failed to save
+    // Roll back the stock bump if saving/merging the purchase record itself failed
     if (updatedMedicine) {
       await Medicine.findByIdAndUpdate(updatedMedicine._id, { $inc: { stock: -purchaseQty } });
     }
     throw err;
   }
-
-  res.status(201).json({ success: true, data: purchase, matched: Boolean(updatedMedicine) });
 });
 
 /* -------------------- Excel-imported purchase data -------------------- */
@@ -234,48 +314,72 @@ const match = byLowerName.get(medicineName.toLowerCase());
 
  const importBatch = new Date().toISOString();
 
-  // Matched medicines (already known to inventory) get merged into their
-  // most recent purchase-import row instead of creating a brand new row
-  // every time the same medicine is re-imported. Qty/cost accumulate, and
-  // the previous qty/expiry are kept alongside the new ones so you can see
-  // what changed on this import.
-  const created = [];
+  // A medicine being re-imported may already have a purchase entry on
+  // record - either a prior Excel import row OR a Manual entry made from
+  // the "Add Purchase Entry" form. Either way, merge this row into that
+  // existing record (whichever is most recent) instead of creating a new
+  // one, accumulating qty/cost and keeping the old qty/expiry as
+  // previousQty/previousExpiry.
+  const created = []; // import rows (created or merged) - fed back to the Excel-import table
+  const updatedManualEntries = []; // manual entries that absorbed an imported row this time
   let mergedCount = 0;
 
   for (const row of validRows) {
-    if (row.medicineId) {
-      const existing = await PurchaseImportRow.findOne({ 'data.medicineId': row.medicineId }).sort({ createdAt: -1 });
-      if (existing) {
-        const prevQty = existing.data.qty;
-        const prevExpiry = existing.data.expiry;
-        existing.data = {
-          ...existing.data,
-          ...row,
-          qty: Number(existing.data.qty || 0) + row.qty,
-          cost: Number(existing.data.cost || 0) + row.cost,
-          previousQty: prevQty,
-          previousExpiry: prevExpiry,
-        };
-        existing.importBatch = importBatch;
-        existing.markModified('data');
-        await existing.save();
-        created.push(existing);
-        mergedCount += 1;
-        continue;
-      }
+    const mergeTarget = await findExistingPurchaseForMedicine(row.medicine);
+
+    if (mergeTarget?.type === 'manual') {
+      const existing = mergeTarget.doc;
+      const previousQty = existing.qty;
+      const previousExpiry = existing.expiry;
+      existing.supplier = row.supplier || existing.supplier;
+      existing.qty = Number(existing.qty || 0) + row.qty;
+      existing.cost = Number(existing.cost || 0) + row.cost;
+      existing.category = row.category || existing.category;
+      existing.unit = row.unit || existing.unit;
+      existing.expiry = row.expiry || existing.expiry;
+      existing.batchNumber = row.batchNumber || existing.batchNumber;
+      existing.previousQty = previousQty;
+      existing.previousExpiry = previousExpiry;
+      if (row.medicineId && !existing.medicineId) existing.medicineId = row.medicineId;
+      await existing.save();
+      updatedManualEntries.push(existing);
+      mergedCount += 1;
+      continue;
     }
+
+    if (mergeTarget?.type === 'import') {
+      const existing = mergeTarget.doc;
+      const prevQty = existing.data.qty;
+      const prevExpiry = existing.data.expiry;
+      existing.data = {
+        ...existing.data,
+        ...row,
+        qty: Number(existing.data.qty || 0) + row.qty,
+        cost: Number(existing.data.cost || 0) + row.cost,
+        previousQty: prevQty,
+        previousExpiry: prevExpiry,
+      };
+      existing.importBatch = importBatch;
+      existing.markModified('data');
+      await existing.save();
+      created.push(existing);
+      mergedCount += 1;
+      continue;
+    }
+
     const doc = await PurchaseImportRow.create({ data: row, importBatch });
     created.push(doc);
   }
 
   res.status(201).json({
     success: true,
-    count: created.length,
+    count: created.length + updatedManualEntries.length,
     merged: mergedCount,
     skipped: rejected.length,
     unmatchedMedicines: [...unmatchedNames],
     rejectedRows: rejected,
     data: created,
+    updatedManualEntries,
   });
 });
 

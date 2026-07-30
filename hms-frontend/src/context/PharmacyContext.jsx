@@ -210,9 +210,24 @@ export function PharmacyProvider({ children }) {
         expiry: purchaseForm.expiry,
         batchNumber: purchaseForm.batchNumber,
       });
-      setPurchaseEntries((current) => [{ ...data.data, cost: formatINR(data.data.cost) }, ...current]);
       setShowPurchaseModal(false);
-      toast.success(`Purchase entry "${data.data.purchaseCode}" saved`);
+
+      if (data.merged) {
+        // This purchase merged into an existing entry for the same medicine
+        // (which may itself have been Manual or Excel-imported) - refetch
+        // both lists so the updated qty/cost/previous-qty/expiry show up in
+        // whichever table that row actually lives in.
+        toast.success(`"${purchaseForm.medicine}" stock added to its existing purchase entry`);
+      } else {
+        toast.success(`Purchase entry "${data.data.purchaseCode}" saved`);
+      }
+
+      const [purchasesRes, importsRes] = await Promise.all([
+        api.get('/pharmacy/purchases'),
+        api.get('/pharmacy/purchases/import'),
+      ]);
+      setPurchaseEntries(purchasesRes.data.data.map((p) => ({ ...p, cost: formatINR(p.cost) })));
+      applyImportedRows(importsRes.data.data);
 
       // Stock may have been bumped server-side if the name matched an
       // existing item - refresh inventory to reflect it either way.
@@ -331,7 +346,23 @@ try {
       const rows = rawRows.map(remapExcelRow);
 
      const { data } = await api.post('/pharmacy/purchases/import', { rows });
-      applyImportedRows(data.data);
+
+      // Refetch the full imported-rows list rather than using just this
+      // batch's results - rows from earlier imports (untouched by this
+      // batch) need to stay visible alongside whatever just got merged/added.
+      api.get('/pharmacy/purchases/import')
+        .then((res) => applyImportedRows(res.data.data))
+        .catch(() => {});
+
+      // Some rows may have merged into existing Manual entries for the same
+      // medicine (rather than creating/updating an imported row) - refresh
+      // the manual purchases list too so those updated qty/cost/previous
+      // values show up.
+      if (data.updatedManualEntries?.length > 0) {
+        api.get('/pharmacy/purchases')
+          .then((res) => setPurchaseEntries(res.data.data.map((p) => ({ ...p, cost: formatINR(p.cost) }))))
+          .catch(() => {});
+      }
 
       if (data.skipped > 0) {
         const firstReason = data.rejectedRows[0]?.reason || 'Unknown reason';

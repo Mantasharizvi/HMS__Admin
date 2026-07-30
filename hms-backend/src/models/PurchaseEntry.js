@@ -20,6 +20,11 @@ const purchaseEntrySchema = new mongoose.Schema(
     unit: { type: String, default: '' },
     expiry: { type: String, default: '' }, // ISO date string
     batchNumber: { type: String, default: '' },
+    // Set when a new purchase for this same medicine gets merged into this
+    // row instead of creating a separate entry - preserves what the qty/
+    // expiry were right before this merge, for reference.
+    previousQty: { type: Number, default: null },
+    previousExpiry: { type: String, default: null },
   },
   { timestamps: true }
 );
