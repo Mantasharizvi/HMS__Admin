@@ -214,7 +214,7 @@ const bulkImportPurchases = asyncHandler(async (req, res) => {
     // that don't match a known medicine are still imported for record-
     // keeping (matches prior behavior), but flagged so staff can see which
     // ones need a matching "Add Medicine" entry before stock can reconcile.
-    const match = byLowerName.get(medicineName.toLowerCase());
+const match = byLowerName.get(medicineName.toLowerCase());
     if (!match) unmatchedNames.add(medicineName);
 
     validRows.push({
@@ -222,7 +222,7 @@ const bulkImportPurchases = asyncHandler(async (req, res) => {
       medicine: medicineName,
       qty,
       cost,
-      medicineId: match ? match._id : null,
+      medicineId: match ? match._id.toString() : null,
       matched: Boolean(match),
     });
   });
@@ -232,15 +232,48 @@ const bulkImportPurchases = asyncHandler(async (req, res) => {
     throw new Error(`All ${rows.length} row(s) failed validation. First issue: row ${rejected[0].row} — ${rejected[0].reason}`);
   }
 
-  const importBatch = new Date().toISOString();
-  const docs = validRows.map((row) => ({ data: row, importBatch }));
-  const created = await PurchaseImportRow.insertMany(docs);
+ const importBatch = new Date().toISOString();
+
+  // Matched medicines (already known to inventory) get merged into their
+  // most recent purchase-import row instead of creating a brand new row
+  // every time the same medicine is re-imported. Qty/cost accumulate, and
+  // the previous qty/expiry are kept alongside the new ones so you can see
+  // what changed on this import.
+  const created = [];
+  let mergedCount = 0;
+
+  for (const row of validRows) {
+    if (row.medicineId) {
+      const existing = await PurchaseImportRow.findOne({ 'data.medicineId': row.medicineId }).sort({ createdAt: -1 });
+      if (existing) {
+        const prevQty = existing.data.qty;
+        const prevExpiry = existing.data.expiry;
+        existing.data = {
+          ...existing.data,
+          ...row,
+          qty: Number(existing.data.qty || 0) + row.qty,
+          cost: Number(existing.data.cost || 0) + row.cost,
+          previousQty: prevQty,
+          previousExpiry: prevExpiry,
+        };
+        existing.importBatch = importBatch;
+        existing.markModified('data');
+        await existing.save();
+        created.push(existing);
+        mergedCount += 1;
+        continue;
+      }
+    }
+    const doc = await PurchaseImportRow.create({ data: row, importBatch });
+    created.push(doc);
+  }
 
   res.status(201).json({
     success: true,
     count: created.length,
+    merged: mergedCount,
     skipped: rejected.length,
-    unmatchedMedicines: [...unmatchedNames], // names not found in current inventory - surfaced so the frontend can warn about them
+    unmatchedMedicines: [...unmatchedNames],
     rejectedRows: rejected,
     data: created,
   });
