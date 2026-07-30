@@ -39,8 +39,7 @@ const SearchableSelect = ({
     ? options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
     : options;
 
-  const handleSelect = (option) => {
-    console.log('[SearchableSelect] handleSelect called with:', option, '| total options:', options.length);
+ const handleSelect = (option) => {
     onChange(option.value);
     setQuery('');
     setOpen(false);
@@ -105,14 +104,8 @@ const SearchableSelect = ({
                 <button
                   key={option.value}
                   type="button"
-                  onMouseDown={(e) => {
-                    console.log('[SearchableSelect] mousedown on:', option.label);
-                    e.preventDefault();
-                  }}
-                  onClick={() => {
-                    console.log('[SearchableSelect] click on:', option.label, '| index:', filteredOptions.indexOf(option));
-                    handleSelect(option);
-                  }}
+              onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handleSelect(option)}
                   className={`w-full text-left px-3.5 py-2 text-sm hover:bg-teal-50 ${
                     option.value === value ? 'bg-teal-50 text-teal-700 font-medium' : 'text-ink-900'
                   }`}
