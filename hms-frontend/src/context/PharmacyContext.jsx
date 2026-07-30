@@ -330,9 +330,20 @@ try {
       // rows line up with the manual-entry table instead of creating duplicate columns.
       const rows = rawRows.map(remapExcelRow);
 
-      const { data } = await api.post('/pharmacy/purchases/import', { rows });
+     const { data } = await api.post('/pharmacy/purchases/import', { rows });
       applyImportedRows(data.data);
-      toast.success(`Imported ${data.count} row(s) from "${file.name}"`);
+
+      if (data.skipped > 0) {
+        const firstReason = data.rejectedRows[0]?.reason || 'Unknown reason';
+        toast.error(
+          `Imported ${data.count} row(s), but ${data.skipped} row(s) were skipped. ` +
+          `Row ${data.rejectedRows[0]?.row}: ${firstReason}` +
+          (data.skipped > 1 ? ` (+${data.skipped - 1} more - check console for details)` : '')
+        );
+        console.warn('Rows rejected during import:', data.rejectedRows);
+      } else {
+        toast.success(`Imported ${data.count} row(s) from "${file.name}"`);
+      }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to read or import that Excel file');
     } finally {
